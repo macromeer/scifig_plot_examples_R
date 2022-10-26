@@ -328,7 +328,7 @@ panel_C <-
                      limits = c(20,120)
   )+
   xlab("developmental stage (days)") + 
-  ylab(expression(paste("tracheal length (",~mu*m,")")))
+  ylab(TeX("tracheal length ($\\mu$m)"))
 
 # Panel D ----
 
