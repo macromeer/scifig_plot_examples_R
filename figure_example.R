@@ -182,7 +182,9 @@ panel_B <-
         axis.ticks.x=element_blank(),
         axis.text.x = element_text(vjust=-0.5),
         axis.title.x = element_text(vjust=-0.5),
-        legend.key.size = unit(0.4, "lines")
+        legend.key.size = unit(0.4, "lines"),
+        plot.margin = unit(c(0,1,0,0), "cm"),
+        aspect.ratio = 1
   ) +
   xlab(expression(paste("number of neighbors ",italic("n")))) +
   ylab("fraction of cells (%)") 
@@ -253,7 +255,7 @@ panel_B <-
   annotation_custom(grob = panel_B_inset, 
                     xmin=6.6, xmax=10.1, ymin=0.1, ymax=0.6) +
   annotation_custom(grob = ggplotGrob(polygons), 
-                    xmin = 2.36, xmax = 10.67, ymin = -0.182, ymax = 0.085) 
+                    xmin = 2.36, xmax = 10.68, ymin = -0.192, ymax = 0.085) 
 
 
 # Panel C ----
