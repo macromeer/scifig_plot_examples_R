@@ -5,7 +5,7 @@ setwd(getwd())
 # Libraries/packages 
 
 library(ggplot2) # Grammar of graphics
-library(cowplot) # Arranging multiple plots into a grid
+library(patchwork) # Arranging multiple plots into a grid
 library(png)     # Load JPEG, PNG and TIFF format 
 library(scales)  # Generic plot scaling methods
 library(viridis) # Default color maps from 'matplotlib'
@@ -13,6 +13,7 @@ library(grid)    # A rewrite of the graphics layout capabilities
 library(magick)  # graphics and image processing
 library(rsvg)    # Render svg image into a high quality bitmap
 library(ggforce) # Collection of additional ggplot stats + geoms
+library(latex2exp) # Use LaTeX Expressions in Plots
 
 # global font size
 base_size=12 
@@ -188,25 +189,15 @@ panel_B <-
 
 
 inset_curve <- function(n) 180*(n-2)/n 
-# The equation is added as an image bc the annotate() function output looks too ugly
-inset_equation <- image_read_svg("./panel_b_inset_equation.svg",width = 583,height = 240)
 
 # now comes the inset plot
 
-inset <- ggplot() + 
-  stat_function(fun=inset_curve, 
-                geom="line",
-                linetype="solid",
-                aes(x=n,
-                    y=inset_curve(n))) +
-  # annotate(geom="text",label="180*degree*(n-2)/n",x = 5.5,y=160,
-  #          parse=TRUE,size=2) +
-  annotation_custom(rasterGrob(image = inset_equation, 
-                               x=0.5,
-                               y=0.8,
-                               width = unit(0.3125,"npc"),
-                               height = unit(0.126,"npc")), 
-                    -Inf, Inf, -Inf, Inf) +
+inset <- 
+  ggplot() + geom_line(aes(n,inset_curve(n))) +
+    annotate("text",
+             x=6.5,y=160,
+             label=TeX("$180^\\circ(\\textit{n}-2)/\\textit{n}$"),
+             parse=TRUE,size=2) +
   scale_x_continuous(expand = c(0, 0),
                      breaks=c(seq(3,10,1)),
                      limits = c(3,10)) +
@@ -255,8 +246,6 @@ polygons <-
                         color="black") +
   theme_void() + coord_fixed()
 
-
-
 # finally, we can combine everything to plot panel B
 
 panel_B <- 
@@ -264,7 +253,7 @@ panel_B <-
   annotation_custom(grob = panel_B_inset, 
                     xmin=6.6, xmax=10.1, ymin=0.1, ymax=0.6) +
   annotation_custom(grob = ggplotGrob(polygons), 
-                    xmin = 2.36, xmax = 10.67, ymin = -0.172, ymax = 0.115) 
+                    xmin = 2.36, xmax = 10.67, ymin = -0.182, ymax = 0.085) 
 
 
 # Panel C ----
@@ -435,11 +424,12 @@ panel_D <-
     axis.text.y.right = element_text(margin = margin(l=7)),
     axis.title.y.right = element_text(angle = 90)
   ) +
-  xlab(expression(lumen~width~(mu*m))) +
+  #xlab(expression(lumen~width~(mu*m))) +
+  xlab(TeX("lumen width ($\\mu$m)")) +
   ylab("relative flow velocity") + 
-  annotate(geom = "text",x =6 ,y =0.85 ,label = "tau == 0.5~Pa",parse=T) +
-  annotate(geom = "text",x =1.4 ,y =0.4 ,label = "b == 1.1*mu*m",parse=T,angle=90) +
-  annotate(geom = "text",x =5.6 ,y =0.6 ,label = "tau == frac(4*mu*Q,pi*a*b^2)",parse=T) 
+  annotate(geom = "text",x =6 ,y =0.85 ,label = "italic(tau) == 0.5~Pa",parse=T) +
+  annotate(geom = "text",x =1.4 ,y =0.4 ,label = "italic(b) == 1.1*mu*m",parse=T,angle=90) +
+  annotate(geom = "text",x =6.5 ,y =0.6 ,label = "italic(tau) == frac(4*italic(mu*Q),pi*italic(a*b)^2)",parse=T) 
   
 
 
@@ -531,18 +521,10 @@ panel_F <- ggplot(data=data_F,
 
 
 
-# Plot the whole figure using plot_grid from the cowplot package
+# Plotting ----
 
-
-row1 <- plot_grid(panel_A,panel_B,panel_C,
-                  ncol=3,
-                  labels = c('A','B','C'))#,rel_widths = c(0.9,0.9))
-
-row2 <- plot_grid(panel_D,panel_E,panel_F,
-                  ncol=3,
-                  labels = c('D','E','F'))
-
-plot_grid(row1,row2,nrow=2)
+wrap_plots(panel_A,panel_B,panel_C,panel_D,panel_E,panel_F) + 
+  plot_annotation(tag_levels = 'A')  
 
 # RStudio instructions for saving the final plot:
 # Whenever you resize the 'Plots' window, click 'refresh current plot'
