@@ -1,0 +1,43 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Liberation Sans stands in for Arial; pdffonts checks the fonts embedded in the PDF
+      - name: Install fonts and poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y fonts-liberation poppler-utils
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      # Installs the packages listed in DESCRIPTION, including system libraries (ImageMagick)
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"all"'
+
+      - name: Run tests
+        run: Rscript -e 'testthat::test_dir("tests/testthat")'
+
+      - name: Upload snapshot differences
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: snapshot-differences
+          path: tests/testthat/_snaps/**/*.new.svg
+          if-no-files-found: ignore

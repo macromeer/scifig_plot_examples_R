@@ -539,18 +539,26 @@ fig_height = 686/96
 # which on some Linux systems resolves to a bitmap font (pixelated, missing rotated glyphs).
 # On Linux, fontconfig maps "Arial" to the metric-compatible Liberation Sans.
 fig_font = "Arial"
-ggsave("figure_example.png", figure, width = fig_width, height = fig_height, dpi = 96, bg = "white",
-       family = fig_font)
 
-# svglite writes the name of the installed font it matched (e.g. "Liberation Sans" on Linux).
-# Replace it with a CSS fallback list so the SVG renders the same on any system.
-svg_font = systemfonts::font_info(fig_font)$family
-ggsave("figure_example.svg", figure, width = fig_width, height = fig_height, bg = "white",
-       system_fonts = list(sans = svg_font, symbol = svg_font)) # symbol: Greek letters in plotmath
-svg = readLines("figure_example.svg")
-svg = gsub('font-family: "[^"]*"', 'font-family: Arial, "Liberation Sans", Helvetica, sans-serif', svg)
-writeLines(svg, "figure_example.svg")
+# The tests set options(scifig.save = FALSE) to build the panels without writing files,
+# and options(scifig.out_dir = ...) to write the files somewhere else.
+if (getOption("scifig.save", TRUE)) {
+  out_dir = getOption("scifig.out_dir", ".")
+  out_file = function(ext) file.path(out_dir, paste0("figure_example.", ext))
 
-ggsave("figure_example.pdf", figure, width = fig_width, height = fig_height, device = cairo_pdf, # cairo: Unicode glyphs (mu)
-       family = fig_font)
+  ggsave(out_file("png"), figure, width = fig_width, height = fig_height, dpi = 96, bg = "white",
+         family = fig_font)
+
+  # svglite writes the name of the installed font it matched (e.g. "Liberation Sans" on Linux).
+  # Replace it with a CSS fallback list so the SVG renders the same on any system.
+  svg_font = systemfonts::font_info(fig_font)$family
+  ggsave(out_file("svg"), figure, width = fig_width, height = fig_height, bg = "white",
+         system_fonts = list(sans = svg_font, symbol = svg_font)) # symbol: Greek letters in plotmath
+  svg = readLines(out_file("svg"))
+  svg = gsub('font-family: "[^"]*"', 'font-family: Arial, "Liberation Sans", Helvetica, sans-serif', svg)
+  writeLines(svg, out_file("svg"))
+
+  ggsave(out_file("pdf"), figure, width = fig_width, height = fig_height, device = cairo_pdf, # cairo: Unicode glyphs (mu)
+         family = fig_font)
+}
 
