@@ -30,7 +30,7 @@ install.packages(c("shiny", "bslib", "ragg"))
 shiny::runApp("app")
 ```
 
-The app is also online at **https://meer.solutions/scifig_plot_examples_R/**, built with [Shinylive](https://posit-dev.github.io/r-shinylive/) and published by a GitHub Actions workflow on every push to `main`. It runs R in your browser (WebAssembly), so nothing needs to be installed and uploaded data stay on your computer. The first visit downloads about 120 MB; after that, the browser cache makes it faster.
+The app is also online at **https://meer.solutions/scifig_plot_examples_R/**, built with [Shinylive](https://posit-dev.github.io/r-shinylive/) and published by a GitHub Actions workflow on every push to `main`. It runs R in your browser (WebAssembly), so nothing needs to be installed. The first visit downloads about 115 MB; after that, the browser cache makes it faster.
 
 ![dashboard](dashboard.png)
 
