@@ -1,0 +1,3 @@
+# dashboard build (see .github/workflows/pages.yaml)
+_build/
+_site/

@@ -1,0 +1,79 @@
+name: pages
+
+# Builds the dashboard (app/) as a Shinylive app, which runs R in the visitor's browser,
+# and publishes it on GitHub Pages
+# Pull requests only build and check the export; deploying happens from main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one deployment at a time; a newer push waits instead of cancelling a running deployment
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      # shinylive bundles only packages that are installed here, so install all of the app's
+      # (the suggested ones in DESCRIPTION) plus shinylive itself
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"all"'
+          extra-packages: any::shinylive
+
+      # the app finds R/figure.R, data/ and images/ next to app.R in the bundle
+      - name: Assemble the app
+        run: |
+          mkdir -p _build/app/R
+          cp app/app.R _build/app/
+          cp R/figure.R _build/app/R/
+          cp -r data images _build/app/
+
+      - name: Export with Shinylive
+        run: Rscript -e 'shinylive::export("_build/app", "_site", template_params = list(title = "Scientific figure dashboard"))'
+
+      - name: Check the export
+        run: |
+          test -f _site/index.html
+          test -f _site/app.json
+          for pkg in ggplot2 patchwork magick ragg svglite; do
+            test -d "_site/shinylive/webr/packages/$pkg" || { echo "$pkg was not bundled"; exit 1; }
+          done
+
+      - uses: actions/configure-pages@v6
+        if: github.ref == 'refs/heads/main'
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
