@@ -1,0 +1,25 @@
+Package: scifigexamples
+Title: Scientific Publication Figure Plotting Examples with R
+Version: 0.1.0
+Description: Example script for a multi-panel scientific figure. This is not
+    an R package: the file only lists the dependencies, so they can be
+    installed with pak::local_install_deps() and in CI.
+License: GPL-3
+Encoding: UTF-8
+Depends:
+    R (>= 4.1)
+Imports:
+    ggforce,
+    ggplot2 (>= 3.5.0),
+    grid,
+    latex2exp,
+    magick,
+    patchwork,
+    scales,
+    svglite,
+    systemfonts
+Suggests:
+    testthat (>= 3.0.0),
+    vdiffr,
+    withr
+Config/testthat/edition: 3

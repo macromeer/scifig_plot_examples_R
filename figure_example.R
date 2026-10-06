@@ -1,5 +1,5 @@
 
-# Run from the repository root: data and image files are read via relative paths
+# Run from the repository root: reads data/ and images/ via relative paths
 
 # Libraries/packages
 
@@ -70,8 +70,8 @@ my_theme <-  function() {
 
 # Panel A ----
 
-img1 <- magick::image_flip(magick::image_read("./image1.jpg"))
-img2 <-  magick::image_flip(magick::image_read("./image2.png"))
+img1 <- magick::image_flip(magick::image_read("./images/image1.jpg"))
+img2 <-  magick::image_flip(magick::image_read("./images/image2.png"))
 
 panel_A <- ggplot() +
   annotation_custom(rasterGrob(image =  img1, 
@@ -131,7 +131,7 @@ panel_A <- ggplot() +
 
 # Panel B ----
 
-data_B = read.csv("./data_B.csv")
+data_B = read.csv("./data/data_B.csv")
 
 # format data to ggplot's liking
 data_B = data.frame("n"=c(data_B$n,data_B$n),
@@ -258,14 +258,14 @@ panel_B <-
 # Panel C ----
 
 # these files have no header row
-data_Cwt_E8.5  = read.csv( "./data_Cwt_E8.5.csv", header = FALSE)
-data_Cwt_E9.5  = read.csv( "./data_Cwt_E9.5.csv", header = FALSE)
-data_Cwt_E10.5 = read.csv("./data_Cwt_E10.5.csv", header = FALSE)
-data_Cwt_E11.5 = read.csv("./data_Cwt_E11.5.csv", header = FALSE)
-data_Cmu_E8.5  = read.csv( "./data_Cmu_E8.5.csv", header = FALSE)
-data_Cmu_E9.5  = read.csv( "./data_Cmu_E9.5.csv", header = FALSE)
-data_Cmu_E10.5 = read.csv("./data_Cmu_E10.5.csv", header = FALSE)
-data_Cmu_E11.5 = read.csv("./data_Cmu_E11.5.csv", header = FALSE)
+data_Cwt_E8.5  = read.csv( "./data/data_Cwt_E8.5.csv", header = FALSE)
+data_Cwt_E9.5  = read.csv( "./data/data_Cwt_E9.5.csv", header = FALSE)
+data_Cwt_E10.5 = read.csv("./data/data_Cwt_E10.5.csv", header = FALSE)
+data_Cwt_E11.5 = read.csv("./data/data_Cwt_E11.5.csv", header = FALSE)
+data_Cmu_E8.5  = read.csv( "./data/data_Cmu_E8.5.csv", header = FALSE)
+data_Cmu_E9.5  = read.csv( "./data/data_Cmu_E9.5.csv", header = FALSE)
+data_Cmu_E10.5 = read.csv("./data/data_Cmu_E10.5.csv", header = FALSE)
+data_Cmu_E11.5 = read.csv("./data/data_Cmu_E11.5.csv", header = FALSE)
 
 # format data to ggplot's liking
 data_C = data.frame(
@@ -333,8 +333,8 @@ panel_C <-
 
 # Panel D ----
 
-data_D1 = read.csv("./data_D1.csv")
-data_D2 = read.csv("./data_D2.csv")
+data_D1 = read.csv("./data/data_D1.csv")
+data_D2 = read.csv("./data/data_D2.csv")
 
 curve_D1 = data.frame(width=data_D1$width,
                       shear_stress=33.28/(pi*18*data_D1$width^2))
@@ -431,9 +431,9 @@ panel_D <-
 
 # Panel E ----
 
-data_Ea = read.csv("./data_Ea.csv")
-data_Eb = read.csv("./data_Eb.csv")
-data_Ec = read.csv("./data_Ec.csv")
+data_Ea = read.csv("./data/data_Ea.csv")
+data_Eb = read.csv("./data/data_Eb.csv")
+data_Ec = read.csv("./data/data_Ec.csv")
 data_E = data.frame("gene"=c(rep("gene a",nrow(data_Ea)),
                              rep("gene b",nrow(data_Eb)),
                              rep("gene c",nrow(data_Ec))),
@@ -497,7 +497,7 @@ panel_E <- ggplot(data=data_E) +
 
 # Panel F ----
 
-data_F = read.csv("./data_F.csv")
+data_F = read.csv("./data/data_F.csv")
 
 panel_F <- ggplot(data=data_F,
                   aes(x=K,y=n,
@@ -539,18 +539,26 @@ fig_height = 686/96
 # which on some Linux systems resolves to a bitmap font (pixelated, missing rotated glyphs).
 # On Linux, fontconfig maps "Arial" to the metric-compatible Liberation Sans.
 fig_font = "Arial"
-ggsave("figure_example.png", figure, width = fig_width, height = fig_height, dpi = 96, bg = "white",
-       family = fig_font)
 
-# svglite writes the name of the installed font it matched (e.g. "Liberation Sans" on Linux).
-# Replace it with a CSS fallback list so the SVG renders the same on any system.
-svg_font = systemfonts::font_info(fig_font)$family
-ggsave("figure_example.svg", figure, width = fig_width, height = fig_height, bg = "white",
-       system_fonts = list(sans = svg_font, symbol = svg_font)) # symbol: Greek letters in plotmath
-svg = readLines("figure_example.svg")
-svg = gsub('font-family: "[^"]*"', 'font-family: Arial, "Liberation Sans", Helvetica, sans-serif', svg)
-writeLines(svg, "figure_example.svg")
+# The tests set options(scifig.save = FALSE) to build the panels without writing files,
+# and options(scifig.out_dir = ...) to write the files somewhere else.
+if (getOption("scifig.save", TRUE)) {
+  out_dir = getOption("scifig.out_dir", ".")
+  out_file = function(ext) file.path(out_dir, paste0("figure_example.", ext))
 
-ggsave("figure_example.pdf", figure, width = fig_width, height = fig_height, device = cairo_pdf, # cairo: Unicode glyphs (mu)
-       family = fig_font)
+  ggsave(out_file("png"), figure, width = fig_width, height = fig_height, dpi = 96, bg = "white",
+         family = fig_font)
+
+  # svglite writes the name of the installed font it matched (e.g. "Liberation Sans" on Linux).
+  # Replace it with a CSS fallback list so the SVG renders the same on any system.
+  svg_font = systemfonts::font_info(fig_font)$family
+  ggsave(out_file("svg"), figure, width = fig_width, height = fig_height, bg = "white",
+         system_fonts = list(sans = svg_font, symbol = svg_font)) # symbol: Greek letters in plotmath
+  svg = readLines(out_file("svg"))
+  svg = gsub('font-family: "[^"]*"', 'font-family: Arial, "Liberation Sans", Helvetica, sans-serif', svg)
+  writeLines(svg, out_file("svg"))
+
+  ggsave(out_file("pdf"), figure, width = fig_width, height = fig_height, device = cairo_pdf, # cairo: Unicode glyphs (mu)
+         family = fig_font)
+}
 
