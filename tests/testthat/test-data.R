@@ -1,6 +1,6 @@
 test_that("tracheal length files are read without losing the first value", {
   # the data_C files have no header row
-  files <- list.files(repo_root, pattern = "^data_C(wt|mu)_E[0-9.]+\\.csv$", full.names = TRUE)
+  files <- list.files(file.path(repo_root, "data"), pattern = "^data_C(wt|mu)_E[0-9.]+\\.csv$", full.names = TRUE)
   expect_length(files, 8)
   n_values <- sum(vapply(files, function(f) length(readLines(f)), integer(1)))
 

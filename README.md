@@ -19,6 +19,15 @@ Rscript figure_example.R
 
 This writes `figure_example.png`, `figure_example.svg` and `figure_example.pdf`.
 
+## Layout
+
+| Path | Contents |
+|---|---|
+| `figure_example.R` | Script that builds and saves the figure |
+| `data/` | CSV data for panels B–F |
+| `images/` | Microscopy images for panel A |
+| `tests/` | Tests (see below) |
+
 ## Tests
 
 The tests check the data loading, that every panel renders without warnings, the exported files, and how each panel looks (visual snapshots with vdiffr). They run on GitHub Actions for every push and pull request. To run them locally:
