@@ -546,8 +546,9 @@ if (getOption("scifig.save", TRUE)) {
   out_dir = getOption("scifig.out_dir", ".")
   out_file = function(ext) file.path(out_dir, paste0("figure_example.", ext))
 
+  # device: ggsave() switches to ragg::agg_png when ragg is installed, which has no family argument
   ggsave(out_file("png"), figure, width = fig_width, height = fig_height, dpi = 96, bg = "white",
-         family = fig_font)
+         device = grDevices::png, family = fig_font)
 
   # svglite writes the name of the installed font it matched (e.g. "Liberation Sans" on Linux).
   # Replace it with a CSS fallback list so the SVG renders the same on any system.
