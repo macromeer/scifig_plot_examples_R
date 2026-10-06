@@ -42,3 +42,61 @@ test_that("panel B leaves out the inset and polygons when switched off", {
   opts$show_polygons <- FALSE
   expect_equal(n_custom(fig$panel_b(data, opts)), 0)
 })
+
+test_that("the repository's data passes check_figure_data() unchanged", {
+  for (dataset in names(fig$data_schemas())) {
+    expect_equal(fig$check_figure_data(data[[dataset]], dataset), data[[dataset]],
+                 ignore_attr = TRUE, label = dataset)
+  }
+})
+
+test_that("check_figure_data() reads data as it comes from a CSV file", {
+  file <- withr::local_tempfile(fileext = ".csv")
+  write.csv(data$E[data$E$gene != "gene c", c("gene", "t", "C", "pos_err", "neg_err")], file, row.names = FALSE)
+  checked <- fig$check_figure_data(read.csv(file, stringsAsFactors = FALSE), "E")
+  # the horizontal error columns are optional
+  expect_named(checked, names(fig$data_schemas()$E))
+  expect_true(all(is.na(checked$pos_err_t)))
+})
+
+test_that("check_figure_data() names the column and row of a problem", {
+  bad_C <- data$C
+  bad_C$trachea_length <- as.character(bad_C$trachea_length)
+  bad_C$trachea_length[5] <- "n/a"
+  expect_error(fig$check_figure_data(bad_C, "C"), "Column trachea_length, data row 5: 'n/a' is not a number")
+
+  bad_C <- data$C
+  bad_C$type[3] <- ""
+  expect_error(fig$check_figure_data(bad_C, "C"), "Column type, data row 3: value missing")
+
+  expect_error(fig$check_figure_data(data$D1["width"], "D1"), "Missing column\\(s\\): shear_stress")
+  expect_error(fig$check_figure_data(data$F[0, ], "F"), "no data rows")
+})
+
+test_that("check_figure_data() rejects data the panels can't draw", {
+  three_groups <- data$C
+  three_groups$type[1] <- "heterozygous"
+  expect_error(fig$check_figure_data(three_groups, "C"), "at most two groups \\(found 3\\)")
+
+  four_genes <- data$E
+  four_genes$gene[1] <- "gene d"
+  expect_error(fig$check_figure_data(four_genes, "E"), "at most three genes \\(found 4\\)")
+
+  zero_width <- data$D2
+  zero_width$width[2] <- 0
+  expect_error(fig$check_figure_data(zero_width, "D2"), "Column width, data row 2: must be positive")
+
+  one_sided <- data$E
+  one_sided$neg_err_t[which(!is.na(one_sided$pos_err_t))[1]] <- NA
+  expect_error(fig$check_figure_data(one_sided, "E"), "give both or neither")
+})
+
+test_that("count_outside_axes() counts rows outside the fixed axis ranges", {
+  for (dataset in names(fig$axis_limits())) {
+    expect_equal(fig$count_outside_axes(data[[dataset]], dataset), 0, label = dataset)
+  }
+  shifted <- data$C
+  shifted$trachea_length[1:2] <- 150
+  shifted$dev_stage[3] <- "E12.5"
+  expect_equal(fig$count_outside_axes(shifted, "C"), 3)
+})

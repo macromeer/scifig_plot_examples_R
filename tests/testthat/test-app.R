@@ -2,6 +2,7 @@
 
 skip_if_not_installed("shiny")
 skip_if_not_installed("bslib")
+skip_if_not_installed("DT")
 skip_if_not_installed("ragg")
 
 app <- shiny::shinyAppDir(file.path(repo_root, "app"))
@@ -73,5 +74,66 @@ test_that("the downloads write a PNG at the chosen resolution and an SVG", {
     svg <- readLines(output$download_svg, warn = FALSE)
     expect_match(svg[1], "^<\\?xml")
     expect_true(any(grepl("<svg", svg)))
+  })
+})
+
+# The repository's data, as the app loads it
+example_data <- fig$load_figure_data(file.path(repo_root, "data"), file.path(repo_root, "images"))
+
+# A CSV file as fileInput() reports it
+upload <- function(df, name = "upload.csv") {
+  path <- tempfile(fileext = ".csv")
+  write.csv(df, path, row.names = FALSE)
+  data.frame(name = name, size = file.size(path), type = "text/csv", datapath = path)
+}
+
+test_that("an uploaded CSV replaces one data set", {
+  shiny::testServer(app, {
+    start(session, dataset = "F")
+    new_F <- example_data$F[1:50, ]
+    new_F$n <- new_F$n / 2
+    session$setInputs(upload = upload(new_F))
+    expect_equal(data()$F, new_F, ignore_attr = TRUE)
+    expect_equal(data()$C, example_data$C) # the other data sets stay
+    expect_true(upload_status()$ok)
+    expect_equal(nrow(ggplot_build(panels$F())$data[[1]]), 50)
+    expect_match(output$figure_preview$src, "^data:image/png;base64,")
+  })
+})
+
+test_that("an invalid upload keeps the previous data and says what is wrong", {
+  shiny::testServer(app, {
+    start(session, dataset = "C")
+    three_groups <- example_data$C
+    three_groups$type[1] <- "heterozygous"
+    session$setInputs(upload = upload(three_groups))
+    expect_equal(data()$C, example_data$C)
+    expect_false(upload_status()$ok)
+    expect_match(upload_status()$text, "at most two groups")
+  })
+})
+
+test_that("rows outside the axis range are reported", {
+  shiny::testServer(app, {
+    start(session, dataset = "D2")
+    expect_null(output$range_notes)
+    fast <- example_data$D2
+    fast$velocity[1:3] <- 1.5
+    # drawing the preview warns that ggplot removed these rows; the note is the app's report of it
+    suppressWarnings(session$setInputs(upload = upload(fast)))
+    expect_match(output$range_notes$html, "3 row\\(s\\) outside the axis range")
+  })
+})
+
+test_that("example CSVs read back as the example data, and reset restores it", {
+  shiny::testServer(app, {
+    start(session, dataset = "E")
+    example <- read.csv(output$download_example, stringsAsFactors = FALSE)
+    expect_equal(fig$check_figure_data(example, "E"), example_data$E, ignore_attr = TRUE)
+
+    session$setInputs(upload = upload(example_data$E[1:8, ]))
+    expect_equal(nrow(data()$E), 8)
+    session$setInputs(reset_data = 1)
+    expect_equal(data()$E, example_data$E)
   })
 })

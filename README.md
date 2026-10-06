@@ -23,10 +23,10 @@ To change font size, colours or model parameters, edit `opts` in `figure_example
 
 ## Dashboard
 
-`app/` is a Shiny app for the figure: change font size, colours, model parameters and which panels to show, and download the result as PNG or SVG. It uses the same plotting code (`R/figure.R`). To run it locally:
+`app/` is a Shiny app for the figure: change font size, colours, model parameters and which panels to show, replace the data of panels B–F with your own CSV files, and download the result as PNG or SVG. It uses the same plotting code (`R/figure.R`). The Data tab lists the columns each data set needs and offers the example data as CSV to start from. To run it locally:
 
 ```r
-install.packages(c("shiny", "bslib", "ragg"))
+install.packages(c("shiny", "bslib", "DT", "ragg"))
 shiny::runApp("app")
 ```
 
@@ -46,7 +46,7 @@ shiny::runApp("app")
 The tests check the data loading, that every panel renders without warnings (also with non-default settings), the exported files, the dashboard's server logic, and how each panel looks (visual snapshots with vdiffr). They run on GitHub Actions for every push and pull request. To run them locally:
 
 ```r
-install.packages(c("testthat", "vdiffr", "withr", "shiny", "bslib", "ragg"))
+install.packages(c("testthat", "vdiffr", "withr", "shiny", "bslib", "DT", "ragg"))
 ```
 
 ```sh

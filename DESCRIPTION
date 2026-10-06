@@ -2,8 +2,8 @@ Package: scifigexamples
 Title: Scientific Publication Figure Plotting Examples with R
 Version: 0.1.0
 Description: Example script for a multi-panel scientific figure, and a
-    dashboard app for it (app/, needs the suggested packages bslib, ragg
-    and shiny). This is not an R package: the file only lists the
+    dashboard app for it (app/, needs the suggested packages bslib, DT,
+    ragg and shiny). This is not an R package: the file only lists the
     dependencies, so they can be installed with pak::local_install_deps()
     and in CI.
 License: GPL-3
@@ -22,6 +22,7 @@ Imports:
     systemfonts
 Suggests:
     bslib,
+    DT,
     ragg,
     shiny,
     testthat (>= 3.0.0),

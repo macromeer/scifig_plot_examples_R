@@ -100,6 +100,85 @@ data_schemas <- function() {
   )
 }
 
+# Fixed axis ranges, by data set and column. Values outside them are not shown
+# (panel E draws them past the axis). Panel B's x axis follows the data.
+axis_limits <- function() {
+  list(
+    B = list(fraction1 = c(0, 0.6), fraction2 = c(0, 0.6)),
+    C = list(trachea_length = c(20, 120), dev_stage = c("E8.5", "E9.5", "E10.5", "E11.5")),
+    D1 = list(width = c(0.5, 50), shear_stress = c(0.001, 1)),
+    D2 = list(width = c(0.5, 50), velocity = c(0, 1)),
+    E = list(t = c(0, 96), C = c(0, 0.4)),
+    F = list(K = c(1, 100), n = c(0, 4))
+  )
+}
+
+# Checks a data set (e.g. an uploaded CSV) against data_schemas() and returns it with the
+# columns in schema order and the right types. Stops with a message that names the column
+# and data row of the first problem.
+check_figure_data <- function(df, dataset) {
+  schema <- data_schemas()[[dataset]]
+  optional <- if (dataset == "E") c("pos_err_t", "neg_err_t") else character() # horizontal error bars
+  names(df) <- trimws(names(df))
+
+  missing <- setdiff(names(schema), c(names(df), optional))
+  if (length(missing) > 0) {
+    stop("Missing column(s): ", paste(missing, collapse = ", "),
+         ". Expected: ", paste(names(schema), collapse = ", "), ".", call. = FALSE)
+  }
+  for (col in setdiff(optional, names(df))) df[[col]] <- NA_real_
+  df <- df[names(schema)]
+  if (nrow(df) == 0) stop("The file has no data rows.", call. = FALSE)
+
+  problem <- function(col, row, what) {
+    stop(sprintf("Column %s, data row %d: %s", col, row, what), call. = FALSE)
+  }
+  for (col in names(schema)) {
+    x <- df[[col]]
+    if (is.character(x)) x <- trimws(x)
+    blank <- is.na(x) | (is.character(x) & x %in% "")
+    if (schema[[col]] == "numeric") {
+      number <- suppressWarnings(as.numeric(x))
+      not_number <- which(!blank & is.na(number))
+      if (length(not_number) > 0) problem(col, not_number[1], sprintf("'%s' is not a number.", x[not_number[1]]))
+      df[[col]] <- number
+    } else {
+      df[[col]] <- as.character(x)
+    }
+    if (!col %in% optional && any(blank)) problem(col, which(blank)[1], "value missing.")
+  }
+
+  positive <- list(D1 = c("width", "shear_stress"), D2 = "width", F = "K")[[dataset]] # log axes
+  for (col in positive) {
+    if (any(df[[col]] <= 0)) problem(col, which(df[[col]] <= 0)[1], "must be positive (log axis).")
+  }
+  if (dataset == "C" && length(unique(df$type)) > 2) {
+    stop("Column type: panel C has two colours, so at most two groups (found ",
+         length(unique(df$type)), ").", call. = FALSE)
+  }
+  if (dataset == "E") {
+    if (length(unique(df$gene)) > 3) {
+      stop("Column gene: panel E has three point shapes, so at most three genes (found ",
+           length(unique(df$gene)), ").", call. = FALSE)
+    }
+    one_sided <- which(is.na(df$pos_err_t) != is.na(df$neg_err_t))
+    if (length(one_sided) > 0) problem("pos_err_t/neg_err_t", one_sided[1], "give both or neither.")
+  }
+  df
+}
+
+# Number of rows of a data set with a value outside the fixed axis ranges
+count_outside_axes <- function(df, dataset) {
+  limits <- axis_limits()[[dataset]]
+  outside <- rep(FALSE, nrow(df))
+  for (col in names(limits)) {
+    x <- df[[col]]
+    range <- limits[[col]]
+    outside <- outside | if (is.character(range)) !x %in% range else (!is.na(x) & (x < range[1] | x > range[2]))
+  }
+  sum(outside)
+}
+
 # format data_B to ggplot's liking: one row per n and side
 long_data_B <- function(data_B) {
   data.frame("n"=c(data_B$n,data_B$n),
@@ -256,7 +335,7 @@ panel_b <- function(data, opts = figure_defaults()) {
                        oob = oob_keep) + # keep the edge bars (n = 3, 10), which extend past the limits
     scale_y_continuous(expand = c(0, 0),
                        breaks=c(seq(0,0.6,0.1)),
-                       limits = c(0,0.6)
+                       limits = axis_limits()$B$fraction1
     )+
     my_theme(base_size) +
     # some extra theme tweaking
@@ -355,7 +434,7 @@ panel_c <- function(data, opts = figure_defaults()) {
     geom_point(position=position_jitterdodge(seed = opts$jitter_seed), # jitter for h-dist, dodge for grouped dists
                pch=21,
                alpha=opts$point_alpha) +  # transparency
-    scale_x_discrete(limits=c("E8.5","E9.5","E10.5","E11.5")) +
+    scale_x_discrete(limits=axis_limits()$C$dev_stage) +
     scale_fill_manual(values=opts$group_colours)+
     my_theme(opts$base_size) +
     theme(legend.position = "inside",
@@ -365,7 +444,7 @@ panel_c <- function(data, opts = figure_defaults()) {
     ) +
     scale_y_continuous(expand = c(0, 0),
                        breaks=c(seq(20,120,by=20)),
-                       limits = c(20,120)
+                       limits = axis_limits()$C$trachea_length
     )+
     xlab("developmental stage (days)") +
     ylab(TeX("tracheal length ($\\mu$m)"))
@@ -392,12 +471,12 @@ panel_d <- function(data, opts = figure_defaults()) {
     scale_x_log10(expand=c(0,0), # prevent gap between origin and first tick
                   breaks=c(0.5,1,2,5,10,20,50),
                   labels=c(0.5,1,2,5,10,20,50),
-                  limits=c(0.5,50)) +
+                  limits=axis_limits()$D1$width) +
     scale_y_log10( expand = c(0, 0),
                    # using trans_format from the scales package, but one can also use expressions
                    labels = trans_format('log10', math_format(10^.x)),
                    breaks=c(0.001,0.01,0.1,1),
-                   limits = c(0.001,1)
+                   limits = axis_limits()$D1$shear_stress
     ) +
     annotation_logticks(sides = "l") +
     theme(
@@ -430,11 +509,11 @@ panel_d <- function(data, opts = figure_defaults()) {
     scale_x_log10(expand=c(0,0),
                   breaks=c(0.5,1,2,5,10,20,50),
                   labels=c(0.5,1,2,5,10,20,50),
-                  limits=c(0.5,50)) +
+                  limits=axis_limits()$D2$width) +
     annotation_logticks(sides = "b") +
     scale_y_continuous(expand = c(0,0),
                        breaks = seq(0,1,0.1),
-                       limits = c(0,1),
+                       limits = axis_limits()$D2$velocity,
                        # putting the y axis of the second plot to the right
                        position = "right",
                        # now the secondary axis becomes the left axis
@@ -506,12 +585,12 @@ panel_e <- function(data, opts = figure_defaults()) {
     # oob_keep: error bars that reach past the axis limits are drawn, not dropped
     scale_x_continuous(expand = c(0, 0),
                        breaks = c(seq(0,96,12)),
-                       limits = c(0,96),
+                       limits = axis_limits()$E$t,
                        oob = oob_keep
     ) +
     scale_y_continuous(expand = c(0, 0),
                        breaks = c(seq(0,0.4,0.05)),
-                       limits = c(0,0.4),
+                       limits = axis_limits()$E$C,
                        oob = oob_keep
     ) +
     theme(
@@ -537,10 +616,10 @@ panel_f <- function(data, opts = figure_defaults()) {
     scale_x_log10(expand = c(0, 0),
                   labels=c(1,10,100),
                   breaks=c(1,10,100),
-                  limits = c(1,100)) +
+                  limits = axis_limits()$F$K) +
     scale_y_continuous(expand = c(0, 0),
                        breaks=c(seq(0,4,by=0.5)),
-                       limits = c(0,4)) +
+                       limits = axis_limits()$F$n) +
     annotation_logticks(sides='b') +
     scale_size(range = c(1, 3)) +
     scale_fill_viridis_c(option=opts$viridis_option) + # viridis color palette, built into ggplot2

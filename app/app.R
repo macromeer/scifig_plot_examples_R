@@ -29,6 +29,32 @@ panel_settings <- list(
   F = c("base_size", "viridis_option")
 )
 panel_builders <- list(A = panel_a, B = panel_b, C = panel_c, D = panel_d, E = panel_e, F = panel_f)
+# Data sets each panel uses (panel A shows the repository's images, they can't be replaced)
+panel_datasets <- list(A = character(), B = "B", C = "C", D = c("D1", "D2"), E = "E", F = "F")
+
+# Data sets that can be replaced by an uploaded CSV, one tidy table each
+dataset_choices <- c("B: neighbor numbers" = "B", "C: tracheal length" = "C",
+                     "D: shear stress (red squares)" = "D1", "D: flow velocity (blue circles)" = "D2",
+                     "E: concentration" = "E", "F: Hill coefficients" = "F")
+dataset_notes <- list(
+  B = "One row per number of neighbors n: fraction and error of the apical (1) and basal (2) side.",
+  C = "One row per measurement: group (type, at most two groups), stage (dev_stage) and length in µm.",
+  D1 = "Lumen width (µm) and shear stress (Pa), both positive.",
+  D2 = "Lumen width (µm) and relative flow velocity.",
+  E = paste("One row per time point and gene (at most three genes): concentration C with its error bars.",
+            "pos_err_t and neg_err_t (horizontal error bars) are optional."),
+  F = "One row per point: dissociation constant K (positive), Hill coefficient n, amplitude (point size) and duration (colour)."
+)
+dataset_label <- function(dataset) names(dataset_choices)[dataset_choices == dataset]
+
+# "trachea_length 20 to 120; dev_stage E8.5, E9.5, E10.5, E11.5"
+format_limits <- function(dataset) {
+  limits <- axis_limits()[[dataset]]
+  paste(vapply(names(limits), function(col) {
+    range <- limits[[col]]
+    paste(col, if (is.character(range)) paste(range, collapse = ", ") else paste(range, collapse = " to "))
+  }, character(1)), collapse = "; ")
+}
 # Built panels, shared by all sessions. An explicit cache: Shinylive sets up no default app cache.
 panel_cache <- cachem::cache_mem(max_size = 100 * 1024^2)
 
@@ -85,8 +111,9 @@ settings_panel <- accordion(
     sliderInput("base_size", "Base font size", min = 8, max = 16, step = 0.5, value = defaults$base_size),
     helpText("The insets in panels B and D are placed for the default size; other sizes can shift labels."),
     checkboxGroupInput("panels", "Panels", choices = LETTERS[1:6], selected = defaults$panels, inline = TRUE),
-    colour_input("colour1", "Colour 1 (B: apical side, C: mutant)", defaults$group_colours[1]),
-    colour_input("colour2", "Colour 2 (B: basal side, C: wildtype)", defaults$group_colours[2])
+    # panel C colours its groups in alphabetical order (example data: mutant, wildtype)
+    colour_input("colour1", "Colour 1 (B: apical side, C: first group A\u2013Z)", defaults$group_colours[1]),
+    colour_input("colour2", "Colour 2 (B: basal side, C: second group)", defaults$group_colours[2])
   ),
   accordion_panel(
     "B: neighbor numbers",
@@ -134,6 +161,7 @@ ui <- page_sidebar(
     nav_panel(
       "Figure",
       imageOutput("figure_preview", height = "auto"),
+      uiOutput("range_notes"),
       card_footer(
         div(class = "d-flex flex-wrap gap-2 align-items-center",
             selectInput("png_dpi", NULL, width = "180px",
@@ -148,6 +176,22 @@ ui <- page_sidebar(
       imageOutput("panel_preview", height = "auto")
     ),
     nav_panel(
+      "Data",
+      layout_columns(
+        col_widths = c(4, 8),
+        div(
+          selectInput("dataset", "Data set", choices = dataset_choices),
+          uiOutput("dataset_help"),
+          fileInput("upload", "Replace with a CSV file", accept = c(".csv", "text/csv")),
+          uiOutput("upload_status"),
+          div(class = "d-flex flex-wrap gap-2",
+              downloadButton("download_example", "Example CSV"),
+              actionButton("reset_data", "Use example data", icon = icon("rotate-left")))
+        ),
+        DT::DTOutput("data_table")
+      )
+    ),
+    nav_panel(
       "About",
       div(class = "p-2", style = "max-width: 700px;",
         p("This page shows the example figure from",
@@ -155,7 +199,8 @@ ui <- page_sidebar(
             target = "_blank"),
           "and lets you change its settings and download the result as PNG or SVG."),
         p("The plots are made by the same R code as", code("figure_example.R"),
-          "(", code("R/figure.R"), "). The app runs R in your browser (webR), so nothing is sent to a server."),
+          "(", code("R/figure.R"), "). The app runs R in your browser (webR), so nothing is sent to a server,",
+          "including data you upload in the Data tab."),
         p("The figure is drawn at a fixed size (1148 × 686 px at 96 dpi), because the insets in panels B",
           "and D are positioned for that size. The downloads use the same size; higher dpi only adds pixels.",
           "Fonts can differ slightly from the PNG/SVG/PDF that the script writes.")
@@ -203,10 +248,14 @@ server <- function(input, output, session) {
     opts
   }) |> debounce(500)
 
-  # One cached reactive per panel, keyed by the settings that panel uses
+  # The data of this session: the repository's data until a CSV replaces a data set
+  data <- reactiveVal(fig_data)
+  upload_status <- reactiveVal(NULL)
+
+  # One cached reactive per panel, keyed by the settings and data sets that panel uses
   panels <- lapply(setNames(nm = names(panel_builders)), function(id) {
-    reactive(panel_builders[[id]](fig_data, opts())) |>
-      bindCache(opts()[panel_settings[[id]]], id, cache = panel_cache)
+    reactive(panel_builders[[id]](data(), opts())) |>
+      bindCache(opts()[panel_settings[[id]]], data()[panel_datasets[[id]]], id, cache = panel_cache)
   })
 
   figure <- reactive({
@@ -239,6 +288,79 @@ server <- function(input, output, session) {
       ggsave(file, figure(), width = fig_width, height = fig_height, bg = "white", device = svglite::svglite)
     }
   )
+
+  # Data ----
+
+  observeEvent(input$upload, {
+    dataset <- input$dataset
+    file <- input$upload
+    checked <- tryCatch(
+      check_figure_data(read.csv(file$datapath, check.names = FALSE, stringsAsFactors = FALSE), dataset),
+      error = function(e) e
+    )
+    if (inherits(checked, "error")) {
+      upload_status(list(ok = FALSE, text = paste0(file$name, ": ", conditionMessage(checked),
+                                                   " The previous data are kept.")))
+    } else {
+      all_data <- data()
+      all_data[[dataset]] <- checked
+      data(all_data)
+      upload_status(list(ok = TRUE, text = sprintf("%s: %d rows replace %s.", file$name, nrow(checked),
+                                                   dataset_label(dataset))))
+    }
+  })
+
+  observeEvent(input$reset_data, {
+    all_data <- data()
+    all_data[[input$dataset]] <- fig_data[[input$dataset]]
+    data(all_data)
+    upload_status(list(ok = TRUE, text = paste(dataset_label(input$dataset), "uses the example data again.")))
+  })
+
+  # a message about an upload belongs to the data set it was for
+  observeEvent(input$dataset, upload_status(NULL), ignoreInit = TRUE)
+
+  output$dataset_help <- renderUI({
+    dataset <- input$dataset %||% "B"
+    tagList(
+      p(class = "small", dataset_notes[[dataset]]),
+      p(class = "small", "Columns: ", code(paste(names(data_schemas()[[dataset]]), collapse = ", "))),
+      p(class = "small text-muted", "Axis range: ", format_limits(dataset))
+    )
+  })
+
+  output$upload_status <- renderUI({
+    status <- upload_status()
+    if (is.null(status)) return(NULL)
+    p(class = paste("small", if (status$ok) "text-success" else "text-danger"), status$text)
+  })
+
+  output$download_example <- downloadHandler(
+    filename = function() paste0("data_", input$dataset %||% "B", "_example.csv"),
+    content = function(file) write.csv(fig_data[[input$dataset %||% "B"]], file, row.names = FALSE)
+  )
+
+  output$data_table <- DT::renderDT({
+    table <- data()[[input$dataset %||% "B"]]
+    numeric_columns <- names(table)[vapply(table, is.numeric, logical(1))]
+    DT::datatable(table, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE)) |>
+      DT::formatSignif(numeric_columns, digits = 4)
+  })
+
+  # Rows outside the fixed axis ranges, for the panels in the figure
+  output$range_notes <- renderUI({
+    shown <- unlist(panel_datasets[opts()$panels])
+    counts <- vapply(shown, function(dataset) count_outside_axes(data()[[dataset]], dataset), numeric(1))
+    counts <- counts[counts > 0]
+    if (length(counts) == 0) return(NULL)
+    div(class = "small text-warning",
+        lapply(names(counts), function(dataset) {
+          p(class = "mb-1", sprintf("%s: %d row(s) outside the axis range (%s).",
+                                    dataset_label(dataset), counts[[dataset]], format_limits(dataset)))
+        }))
+  })
+
+  # Settings ----
 
   observeEvent(input$reset, {
     for (id in c("base_size", "sigma", "point_alpha")) updateSliderInput(session, id, value = defaults[[id]])
